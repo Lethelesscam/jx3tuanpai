@@ -1,0 +1,16 @@
+{
+  "name": "jx3tuanpai-api",
+  "main": "worker/pages-api.ts",
+  "compatibility_date": "2026-05-15",
+  "vars": {
+    "PAGES_ORIGIN": "https://lethelesscam.github.io"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "jx3tuanpai",
+      "database_id": "00000000-0000-4000-8000-000000000000",
+      "migrations_dir": "drizzle"
+    }
+  ]
+}
