@@ -2,6 +2,7 @@
   "name": "jx3tuanpai-api",
   "main": "worker/pages-api.ts",
   "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
   "vars": {
     "PAGES_ORIGIN": "https://lethelesscam.github.io"
   },

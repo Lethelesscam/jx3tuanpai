@@ -5,7 +5,7 @@ import { defineConfig } from "vite";
 const fromRoot = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
 export default defineConfig({
-  root: fromRoot("./pages/"),
+  root: fromRoot("./web/"),
   publicDir: fromRoot("./public/"),
   envDir: fromRoot("./"),
   base: "/jx3tuanpai/",
