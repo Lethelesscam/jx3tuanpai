@@ -1,7 +1,5 @@
-import { Buffer } from "node:buffer";
-import { createConnection } from "mysql2/promise";
-import type { Connection, ConnectionOptions, Pool, PoolConnection, QueryResult, ResultSetHeader, RowDataPacket } from "mysql2/promise";
-import { LIMIT } from "../../model";
+import type { Connection, Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import { LIMIT } from "../../app/model";
 import type { BoardStore, EntryRow, NoteRow, Person } from "./store";
 
 export const mysqlClientOptions = {
@@ -10,44 +8,24 @@ export const mysqlClientOptions = {
   connectTimeout: 8000,
 };
 
-export type BoardDatabase = Pool | Pick<ConnectionOptions, "host" | "port" | "user" | "password" | "database">;
-
 export async function withMysqlBoard(
-  database: BoardDatabase | undefined,
+  database: Pool,
   handle: (store: BoardStore) => Promise<Response>,
 ): Promise<Response> {
-  let connection: Connection | PoolConnection | undefined;
+  let connection: PoolConnection | undefined;
   try {
-    if (database) {
-      if ("getConnection" in database) {
-        connection = await database.getConnection();
-      } else {
-        const { host, port, user, password, database: name } = database;
-        connection = await createConnection({
-          ...mysqlClientOptions, host, port, user, password, database: name,
-        });
-      }
-      return await handle(mysqlBoard(connection));
-    }
+    connection = await database.getConnection();
+    return await handle(mysqlBoard(connection));
   } catch (error) {
     const code = error instanceof Error && "code" in error ? error.code : "UNKNOWN";
     console.error("Board request failed", code);
+    return Response.json({ error: "共享数据库暂时不可用" }, { status: 503 });
   } finally {
-    if (connection && "release" in connection) connection.release();
-    else if (connection) await connection.end().catch(() => undefined);
+    connection?.release();
   }
-  return Response.json({ error: "共享数据库暂时不可用" }, { status: 503 });
 }
 
 function mysqlBoard(connection: Connection): BoardStore {
-  // Hyperdrive uses MySQL's text protocol. Hex-encode strings so escaping is
-  // independent of the SQL mode on the pooled connection.
-  function query<T extends QueryResult>(sql: string, values: (string | number | null)[]) {
-    return connection.query<T>(sql, values.map(value => typeof value === "string" ? {
-      toSqlString: () => `CONVERT(X'${Buffer.from(value, "utf8").toString("hex")}' USING utf8mb4)`,
-    } : value));
-  }
-
   async function inTransaction<T>(operation: () => Promise<T>): Promise<T> {
     await connection.beginTransaction();
     try {
@@ -62,7 +40,7 @@ function mysqlBoard(connection: Connection): BoardStore {
 
   return {
     async findPerson(hash) {
-      const [rows] = await query<(RowDataPacket & Person)[]>(
+      const [rows] = await connection.execute<(RowDataPacket & Person)[]>(
         "SELECT id, name FROM people WHERE session_hash = ?", [hash],
       );
       const person = rows[0];
@@ -70,7 +48,7 @@ function mysqlBoard(connection: Connection): BoardStore {
     },
     read(viewer) {
       return inTransaction(async () => {
-        const [results] = await query<(RowDataPacket & EntryRow)[]>(`
+        const [results] = await connection.execute<(RowDataPacket & EntryRow)[]>(`
           SELECT e.id, e.name, e.kind, e.created_at, p.name AS author, e.author_id = ? AS mine,
             COALESCE(SUM(r.vote = 1), 0) AS up, COALESCE(SUM(r.vote = -1), 0) AS down,
             AVG(r.rating) AS rating, COUNT(r.rating) AS ratingCount,
@@ -81,7 +59,7 @@ function mysqlBoard(connection: Connection): BoardStore {
           GROUP BY e.id, e.name, e.kind, e.created_at, p.name, e.author_id
           ORDER BY e.created_at DESC, e.id DESC LIMIT ${LIMIT}
         `, [viewer, viewer, viewer, viewer]);
-        const [notes] = await query<(RowDataPacket & NoteRow)[]>(`
+        const [notes] = await connection.execute<(RowDataPacket & NoteRow)[]>(`
           SELECT r.entry_id, p.name, r.note, r.updated_at, r.author_id = ? AS mine
           FROM reviews r JOIN people p ON p.id = r.author_id
           WHERE r.note <> '' ORDER BY r.updated_at DESC LIMIT 4000
@@ -97,31 +75,31 @@ function mysqlBoard(connection: Connection): BoardStore {
       });
     },
     async renamePerson(id, name) {
-      await query("UPDATE people SET name = ? WHERE id = ?", [name, id]);
+      await connection.execute("UPDATE people SET name = ? WHERE id = ?", [name, id]);
     },
     async addPerson(id, name, hash, now) {
-      await query("INSERT INTO people (id, name, session_hash, created_at) VALUES (?, ?, ?, ?)", [id, name, hash, now]);
+      await connection.execute("INSERT INTO people (id, name, session_hash, created_at) VALUES (?, ?, ?, ?)", [id, name, hash, now]);
     },
     addEntries(rows, author, now) {
       return inTransaction(async () => {
         const [lock] = await connection.query<RowDataPacket[]>("SELECT id FROM board_write_lock WHERE id = 1 FOR UPDATE");
         if (lock.length !== 1) throw new Error("Missing board write lock");
         const [count] = await connection.query<RowDataPacket[]>("SELECT COUNT(*) AS total FROM entries");
-        const [duplicates] = await query<RowDataPacket[]>(
+        const [duplicates] = await connection.execute<RowDataPacket[]>(
           `SELECT name_key FROM entries WHERE name_key IN (${rows.map(() => "?").join(", ")})`,
           rows.map(row => row.key),
         );
         const existing = new Set(duplicates.map(row => row.name_key));
         const accepted = rows.filter(row => !existing.has(row.key)).slice(0, Math.max(0, LIMIT - Number(count[0].total)));
         if (accepted.length === 0) return 0;
-        await query(
+        await connection.execute(
           `INSERT INTO entries (id, name, name_key, kind, author_id, created_at)
            VALUES ${accepted.map(() => "(?, ?, ?, ?, ?, ?)").join(", ")}`,
           accepted.flatMap(row => [row.id, row.name, row.key, row.kind, author, now]),
         );
         const notes = accepted.filter(row => row.note);
         if (notes.length) {
-          await query(
+          await connection.execute(
             `INSERT INTO reviews (entry_id, author_id, note, updated_at)
              VALUES ${notes.map(() => "(?, ?, ?, ?)").join(", ")}`,
             notes.flatMap(row => [row.id, author, row.note, now]),
@@ -131,15 +109,15 @@ function mysqlBoard(connection: Connection): BoardStore {
       });
     },
     async moveEntry(id, author, kind) {
-      const [result] = await query<ResultSetHeader>("UPDATE entries SET kind = ? WHERE id = ? AND author_id = ?", [kind, id, author]);
+      const [result] = await connection.execute<ResultSetHeader>("UPDATE entries SET kind = ? WHERE id = ? AND author_id = ?", [kind, id, author]);
       return Boolean(result.affectedRows);
     },
     async deleteEntry(id, author) {
-      const [result] = await query<ResultSetHeader>("DELETE FROM entries WHERE id = ? AND author_id = ?", [id, author]);
+      const [result] = await connection.execute<ResultSetHeader>("DELETE FROM entries WHERE id = ? AND author_id = ?", [id, author]);
       return Boolean(result.affectedRows);
     },
     async writeReview(id, author, field, value, now) {
-      const [result] = await query<ResultSetHeader>(`
+      const [result] = await connection.execute<ResultSetHeader>(`
         INSERT INTO reviews (entry_id, author_id, ${field}, updated_at)
         SELECT id, ?, ?, ? FROM entries WHERE id = ?
         ON DUPLICATE KEY UPDATE ${field} = ?, updated_at = CASE WHEN ? = 'note' THEN ? ELSE reviews.updated_at END

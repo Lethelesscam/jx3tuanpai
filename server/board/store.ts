@@ -1,4 +1,4 @@
-import type { Entry, Kind, Review } from "../../model";
+import type { Entry, Kind, Review } from "../../app/model";
 
 export type Person = { id: string; name: string };
 export type NewEntry = { id: string; name: string; key: string; kind: Kind; note: string };

@@ -96,34 +96,36 @@ export default function Board() {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    const initialRefresh = window.setTimeout(refresh, 0);
     function onVisible() { if (document.visibilityState === "visible") void refresh(); }
     window.addEventListener("focus", onVisible);
     return () => {
+      window.clearTimeout(initialRefresh);
       window.removeEventListener("focus", onVisible);
       window.clearTimeout(hoverTimer.current);
       window.clearTimeout(toastTimer.current);
     };
   }, [refresh]);
 
+  const previewId = preview?.id;
+  const previewPinned = preview?.pinned;
   useEffect(() => {
-    if (!preview) return;
-    const id = preview.id;
+    if (!previewId) return;
     function outside(event: PointerEvent) {
       if (event.target instanceof Node && !previewRef.current?.contains(event.target) && !anchor.current?.contains(event.target)) setPreview(null);
     }
     function escape(event: KeyboardEvent) {
       if (event.key === "Escape" && !document.querySelector("dialog[open]")) {
         setPreview(null);
-        if (preview?.pinned) anchor.current?.focus();
+        if (previewPinned) anchor.current?.focus();
       }
     }
     function updatePosition() {
       const button = anchor.current;
       if (!button?.isConnected) { setPreview(null); return; }
-      if (!preview?.pinned) { setPreview(null); return; }
+      if (!previewPinned) { setPreview(null); return; }
       const position = positionOf(button);
-      setPreview(current => current?.id === id ? { ...current, ...position } : current);
+      setPreview(current => current && current.id === previewId ? { ...current, ...position } : current);
     }
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", escape);
@@ -135,7 +137,7 @@ export default function Board() {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition);
     };
-  }, [preview?.id, preview?.pinned]);
+  }, [previewId, previewPinned]);
 
   function notify(message: string) {
     setStatus(message);

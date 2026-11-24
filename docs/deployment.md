@@ -10,12 +10,6 @@
 
 免费实例无流量 15 分钟后会休眠，下一次请求可能需要等待约一分钟。
 
-## Cloudflare Worker
-
-生产站通过 Cloudflare Hyperdrive 连接 SQLPub 的 MySQL 数据库。使用 Wrangler 登录 Cloudflare 后运行 `npm run deploy:api`，命令会使用根目录的 [`wrangler.pages-api.json`](../wrangler.pages-api.json)。
-
-配置中的 `HYPERDRIVE` 已指向该项目的生产连接，数据库密码由 Cloudflare 保存。另行部署时，用 [`database/schema.sql`](../database/schema.sql) 初始化目标 MySQL 8.4 数据库，创建关闭查询缓存的 Hyperdrive 配置，更新绑定 ID 和 `vars.PAGES_ORIGIN`。
-
 在浏览器开发者工具的网络面板中，成功读取 `/api/board` 时会返回响应头 `X-Board-Storage: mysql`。
 
 ## GitHub Pages

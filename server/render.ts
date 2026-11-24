@@ -1,7 +1,8 @@
 import { serve } from "@hono/node-server";
 import { createPool } from "mysql2/promise";
-import { mysqlClientOptions } from "../app/api/board/mysql-store";
-import { handlePublicBoard } from "../app/api/board/public-api";
+import { readFileSync } from "node:fs";
+import { mysqlClientOptions } from "./board/mysql-store";
+import { handlePublicBoard } from "./board/public-api";
 import sqlpubCA from "../database/sqlpub-ca.crt?raw";
 
 function setting(name: string) {
@@ -15,6 +16,7 @@ const mysqlPort = Number(setting("MYSQL_PORT"));
 if (!Number.isInteger(mysqlPort) || mysqlPort < 1 || mysqlPort > 65535) {
   throw new Error("Set MYSQL_PORT to a port number from 1 to 65535.");
 }
+const caFile = process.env.MYSQL_CA_FILE;
 
 const pool = createPool({
   ...mysqlClientOptions,
@@ -23,7 +25,7 @@ const pool = createPool({
   database: setting("MYSQL_DATABASE"),
   user: setting("MYSQL_USER"),
   password: setting("MYSQL_PASSWORD"),
-  ssl: { ca: sqlpubCA, rejectUnauthorized: true },
+  ssl: { ca: caFile ? readFileSync(caFile, "utf8") : sqlpubCA, rejectUnauthorized: true },
   connectionLimit: 4,
   maxIdle: 2,
   idleTimeout: 30_000,
@@ -36,7 +38,9 @@ serve({
   overrideGlobalObjects: false,
   fetch(request) {
     if (request.method === "GET" && new URL(request.url).pathname === "/healthz") {
-      return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+      const headers = new Headers({ "Cache-Control": "no-store" });
+      if (process.env.RENDER_GIT_COMMIT) headers.set("X-Board-Revision", process.env.RENDER_GIT_COMMIT);
+      return Response.json({ ok: true }, { headers });
     }
     return handlePublicBoard(request, pool, origin);
   },

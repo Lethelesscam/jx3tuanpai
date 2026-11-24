@@ -9,8 +9,8 @@
 | 目录 | 内容 |
 | --- | --- |
 | [`web/`](web/) | GitHub Pages 静态站入口 |
-| [`app/`](app/) | 榜单界面、OCR 和导入逻辑、榜单 API 及存储接口 |
-| [`worker/`](worker/) 和 [`server/`](server/) | Cloudflare Worker 与 Render API 入口 |
+| [`app/`](app/) | 榜单界面、OCR 和导入逻辑 |
+| [`server/`](server/) | Render API、榜单业务逻辑和 MySQL 连接 |
 | [`database/`](database/) | MySQL 建表脚本 |
 | [`public/ocr/`](public/ocr/) | 浏览器下载的 OCR 模型和运行库 |
 | [`.github/workflows/`](.github/workflows/) | GitHub Pages 构建与部署 |
@@ -19,9 +19,9 @@
 
 需要 Node.js 22.13 或更新版本及 npm。
 
-1. 运行 `npm run install:ci`。
-2. 用 [`database/schema.sql`](database/schema.sql) 初始化一个 MySQL 8.4 开发库，在终端设置 `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` 为该库的连接 URI。
-3. 运行 `npm run dev`，打开终端显示的地址。
+1. 运行 `npm ci`。用 [`database/schema.sql`](database/schema.sql) 初始化 MySQL 8.4 开发库。
+2. 新建 `.env.local`，填写部署文档列出的 `MYSQL_*` 环境变量，并设置 `PAGES_ORIGIN=http://localhost:5173` 和 `VITE_BOARD_API_URL=http://localhost:10000`。使用其他 MySQL 服务器时，通过 `MYSQL_CA_FILE` 指定其 TLS CA 文件。
+3. 运行 `npm run build:api` 和 `npm start`。在另一个终端运行 `npm run dev`，打开它显示的网页地址。
 
 ## 维护文档
 

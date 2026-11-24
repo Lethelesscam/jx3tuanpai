@@ -1,5 +1,5 @@
-import { IMPORT_LIMIT, isKind, NAME_LIMIT, nameKey, NOTE_LIMIT } from "../../model";
-import type { BoardData, Entry } from "../../model";
+import { IMPORT_LIMIT, isKind, NAME_LIMIT, nameKey, NOTE_LIMIT } from "../../app/model";
+import type { BoardData, Entry } from "../../app/model";
 import type { BoardStore, NewEntry } from "./store";
 
 const clean = (value: unknown) => typeof value === "string" ? value.trim() : "";
@@ -31,16 +31,14 @@ async function digest(token: string) {
   return [...new Uint8Array(bytes)].map(byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function personFor(store: BoardStore, request: Request, crossOrigin: boolean) {
-  const token = crossOrigin
-    ? request.headers.get("Authorization")?.match(/^Bearer ([a-f0-9-]{36})$/)?.[1]
-    : request.headers.get("cookie")?.match(/(?:^|;\s*)tuanpai_session=([a-f0-9-]{36})(?:;|$)/)?.[1];
+async function personFor(store: BoardStore, request: Request) {
+  const token = request.headers.get("Authorization")?.match(/^Bearer ([a-f0-9-]{36})$/)?.[1];
   if (!token) return null;
   return store.findPerson(await digest(token));
 }
 
-export async function readBoard(request: Request, store: BoardStore, crossOrigin = false) {
-  const person = await personFor(store, request, crossOrigin);
+export async function readBoard(request: Request, store: BoardStore) {
+  const person = await personFor(store, request);
   const rows = await store.read(person?.id ?? "");
   const entries: Entry[] = rows.entries.map(row => ({ ...row, mine: Boolean(row.mine), reviews: [] }));
   const byId = new Map(entries.map(entry => [entry.id, entry]));
@@ -52,10 +50,9 @@ export async function readBoard(request: Request, store: BoardStore, crossOrigin
   return Response.json(data, { headers: { "Cache-Control": "no-store" } });
 }
 
-export async function writeBoard(request: Request, store: BoardStore, pagesOrigin?: string) {
+export async function writeBoard(request: Request, store: BoardStore, pagesOrigin: string) {
   if (!request.headers.get("content-type")?.startsWith("application/json")) return fail("需要 JSON 请求体", 415);
-  const origin = request.headers.get("origin");
-  if (pagesOrigin ? origin !== pagesOrigin : origin && origin !== new URL(request.url).origin) {
+  if (request.headers.get("origin") !== pagesOrigin) {
     return fail("请求来源无效", 403);
   }
   let body: Record<string, unknown>;
@@ -66,7 +63,7 @@ export async function writeBoard(request: Request, store: BoardStore, pagesOrigi
     if (!body || typeof body !== "object" || Array.isArray(body)) return fail("提交格式不正确");
   } catch { return fail("提交格式不正确"); }
 
-  const person = await personFor(store, request, Boolean(pagesOrigin));
+  const person = await personFor(store, request);
   if (body.action === "identity") {
     const name = clean(body.name);
     if (!name || name.length > 18) return fail("请输入 1–18 字的昵称");
@@ -76,12 +73,7 @@ export async function writeBoard(request: Request, store: BoardStore, pagesOrigi
     }
     const token = crypto.randomUUID();
     await store.addPerson(crypto.randomUUID(), name, await digest(token), Date.now());
-    if (pagesOrigin) return Response.json({ name, sessionToken: token }, { headers: { "Cache-Control": "no-store" } });
-    const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
-    return Response.json({ name }, { headers: {
-      "Set-Cookie": `tuanpai_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${secure}`,
-      "Cache-Control": "no-store",
-    } });
+    return Response.json({ name, sessionToken: token }, { headers: { "Cache-Control": "no-store" } });
   }
   if (!person) return fail("请先设置昵称", 401);
 
