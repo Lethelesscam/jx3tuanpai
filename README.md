@@ -10,7 +10,7 @@
 | --- | --- |
 | [`web/`](web/) | GitHub Pages 静态站入口 |
 | [`app/`](app/) | 榜单界面、OCR 和导入逻辑、榜单 API 及存储接口 |
-| [`worker/`](worker/) | Cloudflare Worker 入口 |
+| [`worker/`](worker/) 和 [`server/`](server/) | Cloudflare Worker 与 Render API 入口 |
 | [`database/`](database/) | MySQL 建表脚本 |
 | [`public/ocr/`](public/ocr/) | 浏览器下载的 OCR 模型和运行库 |
 | [`.github/workflows/`](.github/workflows/) | GitHub Pages 构建与部署 |
@@ -25,5 +25,5 @@
 
 ## 维护文档
 
-- [部署 GitHub Pages 和 Cloudflare Worker](docs/deployment.md)
+- [部署 GitHub Pages 和榜单 API](docs/deployment.md)
 - [OCR 识别逻辑、模型和许可证](docs/ocr.md)

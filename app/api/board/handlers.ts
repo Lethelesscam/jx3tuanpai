@@ -4,6 +4,27 @@ import type { BoardStore, NewEntry } from "./store";
 
 const clean = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const fail = (error: string, status = 400) => Response.json({ error }, { status });
+const MAX_BODY_LENGTH = 40_000;
+
+async function readRequestText(request: Request) {
+  const reader = request.body?.getReader();
+  if (!reader) return "";
+  const decoder = new TextDecoder();
+  let text = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      text += decoder.decode(value, { stream: !done });
+      if (text.length > MAX_BODY_LENGTH) {
+        if (!done) void reader.cancel().catch(() => undefined);
+        return null;
+      }
+      if (done) return text;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
 
 async function digest(token: string) {
   const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
@@ -39,8 +60,8 @@ export async function writeBoard(request: Request, store: BoardStore, pagesOrigi
   }
   let body: Record<string, unknown>;
   try {
-    const raw = await request.text();
-    if (raw.length > 40000) return fail("提交内容过长", 413);
+    const raw = await readRequestText(request);
+    if (raw === null) return fail("提交内容过长", 413);
     body = JSON.parse(raw);
     if (!body || typeof body !== "object" || Array.isArray(body)) return fail("提交格式不正确");
   } catch { return fail("提交格式不正确"); }

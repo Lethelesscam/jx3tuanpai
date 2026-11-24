@@ -1,28 +1,40 @@
 import { Buffer } from "node:buffer";
 import { createConnection } from "mysql2/promise";
-import type { Connection, QueryResult, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { Connection, ConnectionOptions, Pool, PoolConnection, QueryResult, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { LIMIT } from "../../model";
 import type { BoardStore, EntryRow, NoteRow, Person } from "./store";
 
+export const mysqlClientOptions = {
+  charset: "utf8mb4_unicode_ci",
+  disableEval: true,
+  connectTimeout: 8000,
+};
+
+export type BoardDatabase = Pool | Pick<ConnectionOptions, "host" | "port" | "user" | "password" | "database">;
+
 export async function withMysqlBoard(
-  binding: Hyperdrive | undefined,
+  database: BoardDatabase | undefined,
   handle: (store: BoardStore) => Promise<Response>,
 ): Promise<Response> {
-  let connection: Connection | undefined;
+  let connection: Connection | PoolConnection | undefined;
   try {
-    if (binding) {
-      const { host, port, user, password, database } = binding;
-      connection = await createConnection({
-        host, port, user, password, database,
-        charset: "utf8mb4_unicode_ci", disableEval: true, connectTimeout: 8000,
-      });
+    if (database) {
+      if ("getConnection" in database) {
+        connection = await database.getConnection();
+      } else {
+        const { host, port, user, password, database: name } = database;
+        connection = await createConnection({
+          ...mysqlClientOptions, host, port, user, password, database: name,
+        });
+      }
       return await handle(mysqlBoard(connection));
     }
   } catch (error) {
     const code = error instanceof Error && "code" in error ? error.code : "UNKNOWN";
     console.error("Board request failed", code);
   } finally {
-    if (connection) await connection.end().catch(() => undefined);
+    if (connection && "release" in connection) connection.release();
+    else if (connection) await connection.end().catch(() => undefined);
   }
   return Response.json({ error: "共享数据库暂时不可用" }, { status: 503 });
 }
