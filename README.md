@@ -11,7 +11,7 @@
 | [`web/`](web/) | GitHub Pages 静态站入口 |
 | [`app/`](app/) | 榜单界面、OCR 和导入逻辑、榜单 API 及存储接口 |
 | [`worker/`](worker/) | Cloudflare Worker 入口 |
-| [`db/`](db/) 和 [`drizzle/`](drizzle/) | D1 表定义和迁移、MySQL 建表脚本 |
+| [`database/`](database/) | MySQL 建表脚本 |
 | [`public/ocr/`](public/ocr/) | 浏览器下载的 OCR 模型和运行库 |
 | [`.github/workflows/`](.github/workflows/) | GitHub Pages 构建与部署 |
 
@@ -19,9 +19,9 @@
 
 需要 Node.js 22.13 或更新版本及 npm。
 
-1. 运行 `npm run install:ci` 和 `npm run build`。
-2. 使用 Wrangler 把 `drizzle/0000_nosy_the_santerians.sql` 应用到本地 D1 绑定 `DB`，配置文件为 `dist/server/wrangler.json`，本地状态目录为 `.wrangler/state`。
-3. 运行 `npm start`，打开终端显示的地址。
+1. 运行 `npm run install:ci`。
+2. 用 [`database/schema.sql`](database/schema.sql) 初始化一个 MySQL 8.4 开发库，在终端设置 `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` 为该库的连接 URI。
+3. 运行 `npm run dev`，打开终端显示的地址。
 
 ## 维护文档
 

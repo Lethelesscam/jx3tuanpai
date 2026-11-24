@@ -355,6 +355,11 @@ export default function Board() {
         <div><span className="metric-icon gold"><Star size={19}/></span><span>指挥平均分<strong>{average}<small>{votes ? " / 10" : ""}</small></strong></span></div>
       </section>
 
+      <aside className="platform-notice" aria-label="平台声明">
+        <strong>平台声明</strong>
+        <p>本平台仅提供发布功能，不做审核，推荐/避雷的个人意见仅供参考。引战内容会做后台删除。</p>
+      </aside>
+
       <section className="browse" aria-labelledby="browse-heading">
         <div className="browse-title">
           <h2 id="browse-heading">浏览榜单</h2>

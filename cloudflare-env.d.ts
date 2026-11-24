@@ -1,6 +1,6 @@
 declare namespace Cloudflare {
   interface Env {
-    DB?: D1Database;
+    HYPERDRIVE?: Hyperdrive;
     BUCKET?: R2Bucket;
   }
 }

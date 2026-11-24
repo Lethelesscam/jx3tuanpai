@@ -1,9 +1,33 @@
 import { Buffer } from "node:buffer";
+import { createConnection } from "mysql2/promise";
 import type { Connection, QueryResult, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { LIMIT } from "../../model";
 import type { BoardStore, EntryRow, NoteRow, Person } from "./store";
 
-export function mysqlBoard(connection: Connection): BoardStore {
+export async function withMysqlBoard(
+  binding: Hyperdrive | undefined,
+  handle: (store: BoardStore) => Promise<Response>,
+): Promise<Response> {
+  let connection: Connection | undefined;
+  try {
+    if (binding) {
+      const { host, port, user, password, database } = binding;
+      connection = await createConnection({
+        host, port, user, password, database,
+        charset: "utf8mb4_unicode_ci", disableEval: true, connectTimeout: 8000,
+      });
+      return await handle(mysqlBoard(connection));
+    }
+  } catch (error) {
+    const code = error instanceof Error && "code" in error ? error.code : "UNKNOWN";
+    console.error("Board request failed", code);
+  } finally {
+    if (connection) await connection.end().catch(() => undefined);
+  }
+  return Response.json({ error: "共享数据库暂时不可用" }, { status: 503 });
+}
+
+function mysqlBoard(connection: Connection): BoardStore {
   // Hyperdrive uses MySQL's text protocol. Hex-encode strings so escaping is
   // independent of the SQL mode on the pooled connection.
   function query<T extends QueryResult>(sql: string, values: (string | number | null)[]) {

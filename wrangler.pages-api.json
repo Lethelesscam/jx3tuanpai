@@ -3,15 +3,14 @@
   "main": "worker/pages-api.ts",
   "compatibility_date": "2026-05-15",
   "compatibility_flags": ["nodejs_compat"],
+  "preview_urls": false,
   "vars": {
     "PAGES_ORIGIN": "https://lethelesscam.github.io"
   },
-  "d1_databases": [
+  "hyperdrive": [
     {
-      "binding": "DB",
-      "database_name": "jx3tuanpai",
-      "database_id": "00000000-0000-4000-8000-000000000000",
-      "migrations_dir": "drizzle"
+      "binding": "HYPERDRIVE",
+      "id": "86980535f6fc428abb917f5fc5bc8ecf"
     }
   ]
 }

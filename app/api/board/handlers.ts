@@ -18,8 +18,7 @@ async function personFor(store: BoardStore, request: Request, crossOrigin: boole
   return store.findPerson(await digest(token));
 }
 
-export async function readBoard(request: Request, store?: BoardStore, crossOrigin = false) {
-  if (!store) return fail("共享数据库暂时不可用", 503);
+export async function readBoard(request: Request, store: BoardStore, crossOrigin = false) {
   const person = await personFor(store, request, crossOrigin);
   const rows = await store.read(person?.id ?? "");
   const entries: Entry[] = rows.entries.map(row => ({ ...row, mine: Boolean(row.mine), reviews: [] }));
@@ -32,8 +31,7 @@ export async function readBoard(request: Request, store?: BoardStore, crossOrigi
   return Response.json(data, { headers: { "Cache-Control": "no-store" } });
 }
 
-export async function writeBoard(request: Request, store?: BoardStore, pagesOrigin?: string) {
-  if (!store) return fail("共享数据库暂时不可用", 503);
+export async function writeBoard(request: Request, store: BoardStore, pagesOrigin?: string) {
   if (!request.headers.get("content-type")?.startsWith("application/json")) return fail("需要 JSON 请求体", 415);
   const origin = request.headers.get("origin");
   if (pagesOrigin ? origin !== pagesOrigin : origin && origin !== new URL(request.url).origin) {
